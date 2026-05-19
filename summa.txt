@@ -1,0 +1,15 @@
+/health-chain-root
+  ├── /client (React + Vite + Tailwind)
+  │     ├── /src/components/VerifyButton.tsx
+  │     └── /src/pages/Dashboard.tsx
+  │
+  └── /server (Node + Express + TypeScript)
+        ├── /src
+        │    ├── /config (MySQL connection)
+        │    ├── /controllers (Auth, RecordController)
+        │    ├── /models (User, HealthRecord)
+        │    ├── /services
+        │    │     ├── HashService.ts (SHA-256 logic)
+        │    │     └── BlockchainService.ts (Your private chain logic)
+        │    └── server.ts
+        └── Dockerfile
