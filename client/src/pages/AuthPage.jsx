@@ -197,6 +197,7 @@ export default function AuthPage({
   onPasswordChange,
   onSubmit,
   onToggleView,
+  onPreFill,
 }) {
   const cardRef   = useRef(null);
   const fieldsRef = useRef(null);
@@ -359,8 +360,36 @@ export default function AuthPage({
           </button>
         </div>
 
+        {/* Demo credentials banner */}
+        {view === 'login' && onPreFill && (
+          <div className="auth-field mt-5 rounded-xl border border-slate-700/60 bg-slate-800/40 p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-3">
+              Demo — Quick Login
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { label: 'Doctor',  user: 'dr_house',    pw: 'password123', color: 'text-blue-400   border-blue-500/30   hover:bg-blue-500/10'   },
+                { label: 'Patient', user: 'bruce_wayne', pw: 'password123', color: 'text-cyan-400   border-cyan-500/30   hover:bg-cyan-500/10'   },
+                { label: 'Admin',   user: 'admin',       pw: 'admin123',    color: 'text-violet-400 border-violet-500/30 hover:bg-violet-500/10' },
+              ].map(({ label, user, pw, color }) => (
+                <button
+                  key={user}
+                  type="button"
+                  onClick={() => onPreFill(user, pw)}
+                  className={`text-xs py-2 px-3 rounded-lg border font-medium transition-colors ${color}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-slate-600 mt-2 text-center">
+              Click to auto-fill · password: password123 (admin: admin123)
+            </p>
+          </div>
+        )}
+
         {/* Security badge */}
-        <div className="auth-field mt-6 flex items-center justify-center gap-2
+        <div className="auth-field mt-5 flex items-center justify-center gap-2
                         text-xs text-slate-600">
           <Shield className="h-3 w-3" />
           <span>AES-256 encrypted · SHA-256 blockchain · HIPAA audit trail</span>

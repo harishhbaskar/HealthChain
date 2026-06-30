@@ -4,7 +4,7 @@ import { gsap } from 'gsap';
 import {
   Shield, LayoutDashboard, Stethoscope, Users, Calendar,
   ClipboardList, Link2, UserCog, LogOut, Sun, Moon,
-  ChevronLeft, ChevronRight, Activity,
+  ChevronLeft, ChevronRight, Activity, Settings,
 } from 'lucide-react';
 
 const DOCTOR_NAV = [
@@ -24,8 +24,9 @@ const ADMIN_NAV = [
 ];
 
 const PATIENT_NAV = [
-  { to: '/',         icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/clinical', icon: Stethoscope,     label: 'My Records'},
+  { to: '/',         icon: LayoutDashboard, label: 'Dashboard'  },
+  { to: '/clinical', icon: Stethoscope,     label: 'My Records' },
+  { to: '/profile',  icon: Settings,        label: 'My Profile' },
 ];
 
 const ROLE_COLOR = {

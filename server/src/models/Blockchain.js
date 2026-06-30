@@ -1,21 +1,17 @@
-const fs = require('fs');
-const path = require('path');
 const { generateHash } = require('../utils/hashUtils');
-
-const CHAIN_FILE = path.join(__dirname, '../../blockchain_data.json');
+const db = require('../config/db');
 
 class Block {
     constructor(index, timestamp, recordId, dataHash, previousHash = '') {
         this.index = index;
         this.timestamp = timestamp;
-        this.recordId = recordId;     // Link to MySQL ID
-        this.dataHash = dataHash;     // Hash of the medical data
+        this.recordId = recordId;
+        this.dataHash = dataHash;
         this.previousHash = previousHash;
-        this.currentHash = this.calculateHash(); // Hash of THIS block
+        this.currentHash = this.calculateHash();
     }
 
     calculateHash() {
-        // We hash the entire block's content to ensure immutability
         return generateHash(
             this.index +
             this.previousHash +
@@ -27,112 +23,147 @@ class Block {
 
 class Blockchain {
     constructor() {
-        // Mutex lock for preventing race conditions
         this._lock = Promise.resolve();
+        this._initialized = false;
+        this._initPromise = this._init();
+    }
 
-        // Load chain from file if it exists
-        try {
-            if (fs.existsSync(CHAIN_FILE)) {
-                const data = fs.readFileSync(CHAIN_FILE, 'utf8');
-                this.chain = JSON.parse(data);
-            } else {
-                this.chain = [this.createGenesisBlock()];
-                this.saveChainSync();
-            }
-        } catch (err) {
-            console.error('❌ Error loading blockchain:', err.message);
-            // If corrupted, start fresh with new genesis block
-            this.chain = [this.createGenesisBlock()];
-            this.saveChainSync();
+    async _init() {
+        const promiseDb = db.promise();
+
+        await promiseDb.execute(`
+            CREATE TABLE IF NOT EXISTS blockchain_blocks (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                block_index INT NOT NULL,
+                timestamp VARCHAR(50) NOT NULL,
+                record_id INT NOT NULL,
+                data_hash VARCHAR(64) NOT NULL,
+                previous_hash VARCHAR(64) NOT NULL,
+                current_hash VARCHAR(64) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        const [[{ cnt }]] = await promiseDb.execute(
+            'SELECT COUNT(*) AS cnt FROM blockchain_blocks'
+        );
+
+        if (cnt === 0) {
+            const genesis = new Block(0, new Date().toISOString(), 0, 'GENESIS_BLOCK', '0');
+            await promiseDb.execute(
+                `INSERT INTO blockchain_blocks
+                    (block_index, timestamp, record_id, data_hash, previous_hash, current_hash)
+                 VALUES (?, ?, ?, ?, ?, ?)`,
+                [genesis.index, genesis.timestamp, genesis.recordId,
+                 genesis.dataHash, genesis.previousHash, genesis.currentHash]
+            );
         }
+
+        console.log('🔗 Blockchain initialized.');
+        this._initialized = true;
     }
 
-    createGenesisBlock() {
-        return new Block(0, new Date().toISOString(), 0, "GENESIS_BLOCK", "0");
+    async _ensureInit() {
+        if (!this._initialized) await this._initPromise;
     }
 
-    getLatestBlock() {
-        return this.chain[this.chain.length - 1];
-    }
-
-    // Acquire lock to prevent concurrent modifications
     async _acquireLock() {
-        const currentLock = this._lock;
-        let releaseLock;
-        this._lock = new Promise(resolve => {
-            releaseLock = resolve;
-        });
-        await currentLock;
-        return releaseLock;
+        const current = this._lock;
+        let release;
+        this._lock = new Promise(resolve => { release = resolve; });
+        await current;
+        return release;
     }
 
-    // Async addBlock with mutex to prevent race conditions
     async addBlock(recordId, dataHash) {
-        const releaseLock = await this._acquireLock();
-
+        await this._ensureInit();
+        const release = await this._acquireLock();
         try {
-            const previousBlock = this.getLatestBlock();
+            const promiseDb = db.promise();
+            const [rows] = await promiseDb.execute(
+                'SELECT * FROM blockchain_blocks ORDER BY block_index DESC LIMIT 1'
+            );
+            const latest = rows[0];
+
             const newBlock = new Block(
-                this.chain.length,
+                latest.block_index + 1,
                 new Date().toISOString(),
                 recordId,
                 dataHash,
-                previousBlock.currentHash
+                latest.current_hash
             );
-            this.chain.push(newBlock);
-            await this.saveChain();
+
+            await promiseDb.execute(
+                `INSERT INTO blockchain_blocks
+                    (block_index, timestamp, record_id, data_hash, previous_hash, current_hash)
+                 VALUES (?, ?, ?, ?, ?, ?)`,
+                [newBlock.index, newBlock.timestamp, newBlock.recordId,
+                 newBlock.dataHash, newBlock.previousHash, newBlock.currentHash]
+            );
+
             console.log(`🔗 [Blockchain] New Block Added: Index ${newBlock.index}`);
             return newBlock;
         } finally {
-            releaseLock();
+            release();
         }
     }
 
-    // Async file write
-    async saveChain() {
-        return new Promise((resolve, reject) => {
-            fs.writeFile(CHAIN_FILE, JSON.stringify(this.chain, null, 2), (err) => {
-                if (err) reject(err);
-                else resolve();
-            });
-        });
+    async getBlockByRecordId(recordId) {
+        await this._ensureInit();
+        const promiseDb = db.promise();
+        const [rows] = await promiseDb.execute(
+            'SELECT * FROM blockchain_blocks WHERE record_id = ?',
+            [Number(recordId)]
+        );
+        return rows[0] ? this._rowToBlock(rows[0]) : null;
     }
 
-    // Sync save for constructor only
-    saveChainSync() {
-        fs.writeFileSync(CHAIN_FILE, JSON.stringify(this.chain, null, 2));
-    }
+    async isChainValid() {
+        await this._ensureInit();
+        const promiseDb = db.promise();
+        const [rows] = await promiseDb.execute(
+            'SELECT * FROM blockchain_blocks ORDER BY block_index ASC'
+        );
 
-    // Find a block by the MySQL Record ID
-    getBlockByRecordId(recordId) {
-        return this.chain.find(block => block.recordId === Number(recordId));
-    }
+        for (let i = 1; i < rows.length; i++) {
+            const cur  = rows[i];
+            const prev = rows[i - 1];
 
-    // Verify if the entire chain is valid (Integrity Check)
-    isChainValid() {
-        for (let i = 1; i < this.chain.length; i++) {
-            const cur = this.chain[i];
-            const prev = this.chain[i - 1];
-
-            // Rehydrate: blocks loaded from JSON are plain objects — recalculate hash
             const recalculated = generateHash(
-                cur.index + prev.currentHash + cur.timestamp + JSON.stringify(cur.dataHash)
+                cur.block_index + prev.current_hash + cur.timestamp + JSON.stringify(cur.data_hash)
             );
 
-            if (cur.currentHash !== recalculated) return false;
-            if (cur.previousHash !== prev.currentHash) return false;
+            if (cur.current_hash !== recalculated) return false;
+            if (cur.previous_hash !== prev.current_hash) return false;
         }
         return true;
     }
 
-    // Return chain statistics for the dashboard / explorer
-    getChainStats() {
+    async getChainStats() {
+        await this._ensureInit();
+        const promiseDb = db.promise();
+        const [rows] = await promiseDb.execute(
+            'SELECT * FROM blockchain_blocks ORDER BY block_index ASC'
+        );
+        const isValid = await this.isChainValid();
+
         return {
-            length: this.chain.length,
-            isValid: this.isChainValid(),
-            genesisTimestamp: this.chain[0]?.timestamp || null,
-            latestBlock: this.chain[this.chain.length - 1] || null,
-            blocks: this.chain,
+            length: rows.length,
+            isValid,
+            genesisTimestamp: rows[0]?.timestamp || null,
+            latestBlock: rows.length ? this._rowToBlock(rows[rows.length - 1]) : null,
+            blocks: rows.map(r => this._rowToBlock(r)),
+        };
+    }
+
+    _rowToBlock(row) {
+        return {
+            index:        row.block_index,
+            timestamp:    row.timestamp,
+            recordId:     row.record_id,
+            dataHash:     row.data_hash,
+            previousHash: row.previous_hash,
+            currentHash:  row.current_hash,
         };
     }
 }

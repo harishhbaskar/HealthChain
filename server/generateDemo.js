@@ -3,19 +3,7 @@
 //  HealthChain MVP — Rich Demo Data Generator
 //  Generates realistic data so dr_house looks like an active user
 // ═══════════════════════════════════════════════════════════════
-const fs = require('fs');
-const path = require('path');
 const API_URL = 'http://localhost:3000/api';
-
-// No agent needed for HTTP
-const agent = null;
-
-// Reset blockchain file so hashes stay in sync with fresh DB
-const CHAIN_FILE = path.join(__dirname, 'blockchain_data.json');
-if (fs.existsSync(CHAIN_FILE)) {
-    fs.unlinkSync(CHAIN_FILE);
-    console.log('🗑️  Removed stale blockchain_data.json');
-}
 
 // ── Helpers ──────────────────────────────────────────────────
 const register = async (username, role) => {

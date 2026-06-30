@@ -16,6 +16,7 @@ import PatientProfile from './pages/PatientProfile';
 import ClinicalWorkstation from './pages/ClinicalWorkstation';
 import AdminPanel from './pages/AdminPanel';
 import AdminDoctors from './pages/AdminDoctors';
+import PatientSettings from './pages/PatientSettings';
 import { API_URL } from './constants/api';
 import { initialSoapForm } from './utils/soap';
 
@@ -272,6 +273,7 @@ function App() {
                 onPasswordChange={(e) => setPassword(e.target.value)}
                 onSubmit={handleLogin}
                 onToggleView={() => navigate('/register')}
+                onPreFill={(u, p) => { setUsername(u); setPassword(p); }}
               />
             }
           />
@@ -485,6 +487,18 @@ function App() {
               element={
                 isDoctor ? (
                   <AuditLogs token={token} />
+                ) : (
+                  <Navigate to="/" replace />
+                )
+              }
+            />
+
+            {/* Patient profile settings */}
+            <Route
+              path="/profile"
+              element={
+                !isDoctor && !isAdmin ? (
+                  <PatientSettings token={token} />
                 ) : (
                   <Navigate to="/" replace />
                 )

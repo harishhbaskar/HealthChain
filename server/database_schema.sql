@@ -134,3 +134,18 @@ CREATE TABLE IF NOT EXISTS appointments (
     FOREIGN KEY (patient_id) REFERENCES patients(id),
     FOREIGN KEY (doctor_id) REFERENCES doctors(id)
 );
+
+-- =============================================
+-- Blockchain ledger (persisted in MySQL)
+-- =============================================
+
+CREATE TABLE IF NOT EXISTS blockchain_blocks (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    block_index INT NOT NULL,
+    timestamp VARCHAR(50) NOT NULL,
+    record_id INT NOT NULL,
+    data_hash VARCHAR(64) NOT NULL,
+    previous_hash VARCHAR(64) NOT NULL,
+    current_hash VARCHAR(64) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

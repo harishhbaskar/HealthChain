@@ -5,12 +5,17 @@ const recordController = require('../controllers/recordController');
 const appointmentController = require('../controllers/appointmentController');
 const dashboardController = require('../controllers/dashboardController');
 const adminController = require('../controllers/adminController');
+const profileController = require('../controllers/profileController');
 const { verifyToken, checkRole } = require('../middleware/authMiddleware');
 const myBlockchain = require('../models/Blockchain');
 
 // Auth Routes
 router.post('/register', authController.register);
 router.post('/login', authController.login);
+
+// Patient self-service profile
+router.get('/profile',  verifyToken, checkRole(['patient']), profileController.getProfile);
+router.put('/profile',  verifyToken, checkRole(['patient']), profileController.updateProfile);
 
 // Dashboard (Phase 4)
 router.get('/dashboard/stats', verifyToken, checkRole(['doctor', 'admin']), dashboardController.getStats);
@@ -48,14 +53,15 @@ router.get('/appointments', verifyToken, checkRole(['patient', 'doctor', 'admin'
 router.put('/appointments/:id/status', verifyToken, checkRole(['doctor', 'admin']), appointmentController.updateStatus);
 
 // Blockchain Explorer: chain stats + validation (must come BEFORE /blockchain)
-router.get('/blockchain/status', verifyToken, (req, res) => {
+router.get('/blockchain/status', verifyToken, async (req, res) => {
     const myBlockchain = require('../models/Blockchain');
-    res.json(myBlockchain.getChainStats());
+    res.json(await myBlockchain.getChainStats());
 });
 
-// Debug Route: View the Blockchain (protected - requires authentication)
-router.get('/blockchain', verifyToken, checkRole(['doctor', 'admin']), (req, res) => {
+// View the full chain (protected)
+router.get('/blockchain', verifyToken, checkRole(['doctor', 'admin']), async (req, res) => {
     const myBlockchain = require('../models/Blockchain');
-    res.json(myBlockchain.chain);
+    const stats = await myBlockchain.getChainStats();
+    res.json(stats.blocks);
 });
 module.exports = router;
