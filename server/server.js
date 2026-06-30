@@ -9,8 +9,21 @@ const apiRoutes = require('./src/routes/apiRoutes');
 
 const app = express();
 
-// Middleware
-app.use(cors());
+// CORS — allow localhost in dev and FRONTEND_URL in production
+const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    process.env.FRONTEND_URL,
+].filter(Boolean);
+
+app.use(cors({
+    origin: (origin, cb) => {
+        // allow non-browser requests (curl, Postman) and allowed origins
+        if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+        cb(new Error(`CORS blocked: ${origin}`));
+    },
+    credentials: true,
+}));
 app.use(bodyParser.json());
 
 // Routes

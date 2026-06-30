@@ -5,11 +5,10 @@
 // ═══════════════════════════════════════════════════════════════
 const fs = require('fs');
 const path = require('path');
-const https = require('https');
-const API_URL = 'https://localhost:3443/api';
+const API_URL = 'http://localhost:3000/api';
 
-// Skip certificate verification for self-signed certs
-const agent = new https.Agent({ rejectUnauthorized: false });
+// No agent needed for HTTP
+const agent = null;
 
 // Reset blockchain file so hashes stay in sync with fresh DB
 const CHAIN_FILE = path.join(__dirname, 'blockchain_data.json');
@@ -25,7 +24,6 @@ const register = async (username, role) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password: 'password123', role }),
-            agent,
         });
         console.log(`  ✅ Registered ${role}: ${username}`);
     } catch {
@@ -38,7 +36,6 @@ const login = async (username) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password: 'password123' }),
-        agent,
     });
     const data = await res.json();
     return data.token;
@@ -52,7 +49,6 @@ const addRecord = async (token, payload) => {
             Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
-        agent,
     });
     const data = await res.json();
     if (!res.ok || data.error) {
@@ -70,7 +66,6 @@ const bookAppointment = async (token, payload) => {
             Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
-        agent,
     });
     const data = await res.json();
     if (!res.ok || data.error) {
@@ -90,7 +85,6 @@ const updateAppointmentStatus = async (token, appointmentId, status) => {
             Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ status }),
-        agent,
     });
     if (res.ok) console.log(`  🔄 Appointment ${appointmentId} → ${status}`);
 };
@@ -219,13 +213,20 @@ async function runDemoGenerator() {
         console.log('\n── Fetching Patients ──');
         const patientsRes = await fetch(`${API_URL}/patients?limit=100`, {
             headers: { Authorization: `Bearer ${doctorToken}` },
-            agent,
         });
         const patientsJson = await patientsRes.json();
-        const patients = patientsJson.data || patientsJson;
-        console.log(`  Found ${patients.length} patients`);
+        const patients = (patientsJson.data || patientsJson || []);
+        
+        // Ensure patients is an array
+        if (!Array.isArray(patients)) {
+            console.error('  ⚠️  Patients response is not an array:', patientsJson);
+            console.log('  Skipping medical records generation...');
+        } else {
+            console.log(`  Found ${patients.length} patients`);
+        }
 
         const getPatientId = (username) => {
+            if (!Array.isArray(patients)) return null;
             // Convert username like 'bruce_wayne' to match last_name 'Wayne'
             const parts = username.split('_');
             const lastName = parts[parts.length - 1];
@@ -238,22 +239,27 @@ async function runDemoGenerator() {
         // ── 5. Generate Medical Records ─────────────────────
         console.log('\n── Generating Medical Records ──');
         let recordCount = 0;
-        for (const rec of RECORDS) {
-            const patientId = getPatientId(rec.patient);
-            if (!patientId) continue;
-            await addRecord(doctorToken, {
-                patient_id: patientId,
-                subjective: rec.subjective,
-                vitals: rec.vitals,
-                assessment: rec.assessment,
-                plan: rec.plan,
-                severity: rec.severity,
-                allergies: rec.allergies,
-                followUp: rec.followUp,
-            });
-            recordCount++;
+        
+        if (Array.isArray(patients) && patients.length > 0) {
+            for (const rec of RECORDS) {
+                const patientId = getPatientId(rec.patient);
+                if (!patientId) continue;
+                await addRecord(doctorToken, {
+                    patient_id: patientId,
+                    subjective: rec.subjective,
+                    vitals: rec.vitals,
+                    assessment: rec.assessment,
+                    plan: rec.plan,
+                    severity: rec.severity,
+                    allergies: rec.allergies,
+                    followUp: rec.followUp,
+                });
+                recordCount++;
+            }
+            console.log(`  📊 Total records created: ${recordCount}`);
+        } else {
+            console.log(`  ⚠️  Skipped - no patient data available`);
         }
-        console.log(`  📊 Total records created: ${recordCount}`);
 
         // ── 6. Generate Appointments ────────────────────────
         console.log('\n── Generating Appointments ──');
