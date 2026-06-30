@@ -26,3 +26,22 @@ npm-debug.log*
 
 # Docker volumes
 mysql_data/
+
+# Report / document files
+*.docx
+*.pdf
+*.tex
+
+# Repomix output
+repomix-output.xml
+**/repomix-output.xml
+
+# AI-generated context files
+PROJECT_CONTEXT_*.md
+PROJECT_DOCUMENTATION_*.md
+
+# Scratch / temp files
+summa.txt
+server/summa.js
+server/test_verify.js
+server/sys,json
