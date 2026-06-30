@@ -44,6 +44,7 @@ const addRecord = async (token, payload) => {
         return;
     }
     console.log(`  🏥 Record for patient ${payload.patient_id} | Hash: ${data.blockchainHash?.substring(0, 12)}...`);
+    return data;
 };
 
 const bookAppointment = async (token, payload) => {
@@ -191,12 +192,40 @@ async function runDemoGenerator() {
         if (!doctorToken) throw new Error('Failed to get doctor token');
         console.log('  🔑 Token acquired');
 
-        // ── 3. Update doctor profile with proper name ───────
-        console.log('\n── Updating Doctor Profile ──');
-        // We'll use a direct DB call via a custom API or SQL
-        // For now, update via SQL through the patients API pattern
-        // Actually, let's update patients with proper data first
-        
+        // ── 3. Update patient profiles with real names ──────
+        console.log('\n── Updating Patient Profiles ──');
+        for (const p of PATIENT_PROFILES) {
+            try {
+                const patToken = await fetch(`${API_URL}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: p.username, password: 'password123' }),
+                }).then(r => r.json()).then(d => d.token);
+                if (!patToken) { console.error(`  ⚠️  Could not login as ${p.username}`); continue; }
+                const upd = await fetch(`${API_URL}/profile`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${patToken}` },
+                    body: JSON.stringify({
+                        first_name: p.first,
+                        last_name:  p.last,
+                        date_of_birth: p.dob,
+                        gender: p.gender,
+                        blood_type: p.blood,
+                        phone_number: p.phone,
+                        email: p.email,
+                        address: p.address,
+                        emergency_contact_name: p.ecName,
+                        emergency_contact_phone: p.ecPhone,
+                        insurance_provider: p.insurance,
+                    }),
+                });
+                if (upd.ok) console.log(`  ✅ ${p.first} ${p.last}`);
+                else console.error(`  ❌ ${p.username}:`, await upd.json());
+            } catch (e) {
+                console.error(`  ❌ ${p.username}: ${e.message}`);
+            }
+        }
+
         // ── 4. Get patient list ─────────────────────────────
         console.log('\n── Fetching Patients ──');
         const patientsRes = await fetch(`${API_URL}/patients?limit=100`, {
@@ -215,11 +244,13 @@ async function runDemoGenerator() {
 
         const getPatientId = (username) => {
             if (!Array.isArray(patients)) return null;
-            // Convert username like 'bruce_wayne' to match last_name 'Wayne'
-            const parts = username.split('_');
-            const lastName = parts[parts.length - 1];
-            const lastNameCapitalized = lastName.charAt(0).toUpperCase() + lastName.slice(1);
-            const p = patients.find((p) => p.last_name === lastNameCapitalized || p.last_name?.toLowerCase() === lastName);
+            const profile = PATIENT_PROFILES.find(pr => pr.username === username);
+            const p = patients.find((pt) =>
+                // Match by proper last name (after profile update)
+                (profile && pt.last_name?.toLowerCase() === profile.last.toLowerCase()) ||
+                // Fallback: username stored as last_name at registration
+                pt.last_name?.toLowerCase() === username.toLowerCase()
+            );
             if (!p) console.error(`  ⚠️  Patient not found: ${username}`);
             return p?.id;
         };
@@ -232,7 +263,7 @@ async function runDemoGenerator() {
             for (const rec of RECORDS) {
                 const patientId = getPatientId(rec.patient);
                 if (!patientId) continue;
-                await addRecord(doctorToken, {
+                const result = await addRecord(doctorToken, {
                     patient_id: patientId,
                     subjective: rec.subjective,
                     vitals: rec.vitals,
@@ -242,7 +273,7 @@ async function runDemoGenerator() {
                     allergies: rec.allergies,
                     followUp: rec.followUp,
                 });
-                recordCount++;
+                if (result !== undefined) recordCount++;
             }
             console.log(`  📊 Total records created: ${recordCount}`);
         } else {

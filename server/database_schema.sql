@@ -38,9 +38,9 @@ CREATE TABLE IF NOT EXISTS patients (
     phone_number VARCHAR(20) DEFAULT NULL,
     email VARCHAR(255) DEFAULT NULL,
     address TEXT DEFAULT NULL,
-    emergency_contact_name VARCHAR(255) DEFAULT NULL,
-    emergency_contact_phone VARCHAR(20) DEFAULT NULL,
-    insurance_provider VARCHAR(255) DEFAULT NULL,
+    emergency_contact_name VARCHAR(500) DEFAULT NULL,
+    emergency_contact_phone VARCHAR(500) DEFAULT NULL,
+    insurance_provider VARCHAR(500) DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id)
 );

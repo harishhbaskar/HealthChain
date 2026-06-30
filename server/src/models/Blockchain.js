@@ -59,7 +59,29 @@ class Blockchain {
             );
         }
 
-        console.log('🔗 Blockchain initialized.');
+        // Validate chain integrity on every startup
+        const [[{ total }]] = await promiseDb.execute(
+            'SELECT COUNT(*) AS total FROM blockchain_blocks'
+        );
+        if (total > 1) {
+            const [allRows] = await promiseDb.execute(
+                'SELECT * FROM blockchain_blocks ORDER BY block_index ASC'
+            );
+            let valid = true;
+            for (let i = 1; i < allRows.length; i++) {
+                if (allRows[i].previous_hash !== allRows[i - 1].current_hash) {
+                    valid = false;
+                    break;
+                }
+            }
+            if (valid) {
+                console.log(`🔗 Blockchain initialized — chain VALID (${total} blocks).`);
+            } else {
+                console.warn(`⚠️  Blockchain initialized — chain INTEGRITY BREACH detected! (${total} blocks)`);
+            }
+        } else {
+            console.log(`🔗 Blockchain initialized — genesis block ready.`);
+        }
         this._initialized = true;
     }
 
@@ -80,9 +102,26 @@ class Blockchain {
         const release = await this._acquireLock();
         try {
             const promiseDb = db.promise();
-            const [rows] = await promiseDb.execute(
+            let [rows] = await promiseDb.execute(
                 'SELECT * FROM blockchain_blocks ORDER BY block_index DESC LIMIT 1'
             );
+
+            // Table was truncated after server start (e.g. seed.js) — re-seed genesis
+            if (!rows[0]) {
+                const genesis = new Block(0, new Date().toISOString(), 0, 'GENESIS_BLOCK', '0');
+                await promiseDb.execute(
+                    `INSERT INTO blockchain_blocks
+                        (block_index, timestamp, record_id, data_hash, previous_hash, current_hash)
+                     VALUES (?, ?, ?, ?, ?, ?)`,
+                    [genesis.index, genesis.timestamp, genesis.recordId,
+                     genesis.dataHash, genesis.previousHash, genesis.currentHash]
+                );
+                [rows] = await promiseDb.execute(
+                    'SELECT * FROM blockchain_blocks ORDER BY block_index DESC LIMIT 1'
+                );
+                console.log('🔗 [Blockchain] Genesis block re-created after reset.');
+            }
+
             const latest = rows[0];
 
             const newBlock = new Block(
