@@ -5,7 +5,7 @@ const authController = require('../controllers/authController');
 
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 200, // temporarily raised for initial seeding — revert to 20 after
+    max: 20,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Too many attempts, please try again in 15 minutes.' },
