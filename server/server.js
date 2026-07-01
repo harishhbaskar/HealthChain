@@ -9,6 +9,7 @@ require('dotenv').config();
 const apiRoutes = require('./src/routes/apiRoutes');
 
 const app = express();
+app.set('trust proxy', 1); // Render/Railway sit behind a reverse proxy
 app.use(helmet());
 
 // CORS — allow localhost in dev and FRONTEND_URL in production
