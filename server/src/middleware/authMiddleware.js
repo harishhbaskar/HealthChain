@@ -1,5 +1,10 @@
 const jwt = require('jsonwebtoken');
-const SECRET_KEY = 'super_secret_final_year_project_key'; // Use env variable in production
+
+if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+    console.error('❌  JWT_SECRET env var is required in production. Shutting down.');
+    process.exit(1);
+}
+const SECRET_KEY = process.env.JWT_SECRET || 'dev_only_secret_do_not_use_in_production';
 
 const verifyToken = (req, res, next) => {
     const token = req.headers['authorization'];
@@ -38,4 +43,4 @@ const checkRole = (allowedRoles) => {
     };
 };
 
-module.exports = { verifyToken, SECRET_KEY ,checkRole };
+module.exports = { verifyToken, SECRET_KEY, checkRole };

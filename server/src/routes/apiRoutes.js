@@ -1,6 +1,15 @@
 const express = require('express');
 const router = express.Router();
+const rateLimit = require('express-rate-limit');
 const authController = require('../controllers/authController');
+
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many attempts, please try again in 15 minutes.' },
+});
 const recordController = require('../controllers/recordController');
 const appointmentController = require('../controllers/appointmentController');
 const dashboardController = require('../controllers/dashboardController');
@@ -12,8 +21,8 @@ const { verifyToken, checkRole } = require('../middleware/authMiddleware');
 const myBlockchain = require('../models/Blockchain');
 
 // Auth Routes
-router.post('/register', authController.register);
-router.post('/login', authController.login);
+router.post('/register', authLimiter, authController.register);
+router.post('/login', authLimiter, authController.login);
 
 // Patient self-service profile
 router.get('/profile',         verifyToken, checkRole(['patient']), profileController.getProfile);

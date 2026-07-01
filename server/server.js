@@ -3,11 +3,13 @@ const fs = require('fs');
 const http = require('http');
 const https = require('https');
 const cors = require('cors');
+const helmet = require('helmet');
 const bodyParser = require('body-parser');
 require('dotenv').config();
 const apiRoutes = require('./src/routes/apiRoutes');
 
 const app = express();
+app.use(helmet());
 
 // CORS — allow localhost in dev and FRONTEND_URL in production
 const allowedOrigins = [
@@ -32,6 +34,11 @@ app.use('/api', apiRoutes);
 // Root Endpoint
 app.get('/', (req, res) => {
     res.send('HealthChain Bridge API is Running...');
+});
+
+// Health check for Render / Railway
+app.get('/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 const httpPort = Number(process.env.PORT || 3000);
