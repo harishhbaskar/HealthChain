@@ -16,6 +16,7 @@ import PatientProfile from './pages/PatientProfile';
 import ClinicalWorkstation from './pages/ClinicalWorkstation';
 import AdminPanel from './pages/AdminPanel';
 import AdminDoctors from './pages/AdminDoctors';
+import PatientSettings from './pages/PatientSettings';
 import { API_URL } from './constants/api';
 import { initialSoapForm } from './utils/soap';
 
@@ -41,10 +42,30 @@ function App() {
   const [records, setRecords] = useState([]);
   const [verificationStatus, setVerificationStatus] = useState({});
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('theme', theme);
   }, [theme]);
+
+  // Auto-logout on 401 (expired/invalid token)
+  useEffect(() => {
+    const interceptor = axios.interceptors.response.use(
+      (res) => res,
+      (err) => {
+        if (err.response?.status === 401) {
+          setToken(null);
+          setUser(null);
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          setRecords([]);
+          setPatients([]);
+        }
+        return Promise.reject(err);
+      }
+    );
+    return () => axios.interceptors.response.eject(interceptor);
+  }, []);
 
   // ---- data fetchers ----
   const authHeaders = (t) => ({ headers: { Authorization: `Bearer ${t || token}` } });
@@ -252,6 +273,7 @@ function App() {
                 onPasswordChange={(e) => setPassword(e.target.value)}
                 onSubmit={handleLogin}
                 onToggleView={() => navigate('/register')}
+                onPreFill={(u, p) => { setUsername(u); setPassword(p); }}
               />
             }
           />
@@ -280,7 +302,8 @@ function App() {
   const isAdmin = user?.role === 'admin';
 
   return (
-    <div className={`${theme === 'light' ? 'light-mode bg-gray-100' : 'dark-mode bg-gray-900'} min-h-screen`}>
+    <div className={`${theme === 'light' ? 'light-mode' : 'dark-mode'} min-h-screen`}
+         style={{ background: theme === 'light' ? 'var(--bg-0, #f0f4ff)' : 'var(--bg-0)' }}>
       <Toaster
         position="top-right"
         toastOptions={{
@@ -315,10 +338,17 @@ function App() {
         onLogout={logout}
         theme={theme}
         onToggleTheme={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
+        onCollapseChange={setSidebarCollapsed}
       />
 
       {/* Main content area — offset by sidebar width */}
-      <div className="transition-all duration-300 ml-60 min-h-screen bg-gray-100">
+      <div
+        className="min-h-screen content-area bg-grid"
+        style={{
+          marginLeft: sidebarCollapsed ? 68 : 240,
+          transition: 'margin-left 0.3s cubic-bezier(0.4,0,0.2,1)',
+        }}
+      >
         <div className="max-w-7xl mx-auto py-8 px-6 lg:px-10">
           <Routes>
             {/* Dashboard Home */}
@@ -457,6 +487,18 @@ function App() {
               element={
                 isDoctor ? (
                   <AuditLogs token={token} />
+                ) : (
+                  <Navigate to="/" replace />
+                )
+              }
+            />
+
+            {/* Patient profile settings */}
+            <Route
+              path="/profile"
+              element={
+                !isDoctor && !isAdmin ? (
+                  <PatientSettings token={token} />
                 ) : (
                   <Navigate to="/" replace />
                 )

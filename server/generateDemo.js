@@ -3,20 +3,7 @@
 //  HealthChain MVP — Rich Demo Data Generator
 //  Generates realistic data so dr_house looks like an active user
 // ═══════════════════════════════════════════════════════════════
-const fs = require('fs');
-const path = require('path');
-const https = require('https');
-const API_URL = 'https://localhost:3443/api';
-
-// Skip certificate verification for self-signed certs
-const agent = new https.Agent({ rejectUnauthorized: false });
-
-// Reset blockchain file so hashes stay in sync with fresh DB
-const CHAIN_FILE = path.join(__dirname, 'blockchain_data.json');
-if (fs.existsSync(CHAIN_FILE)) {
-    fs.unlinkSync(CHAIN_FILE);
-    console.log('🗑️  Removed stale blockchain_data.json');
-}
+const API_URL = 'http://localhost:3000/api';
 
 // ── Helpers ──────────────────────────────────────────────────
 const register = async (username, role) => {
@@ -25,7 +12,6 @@ const register = async (username, role) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password: 'password123', role }),
-            agent,
         });
         console.log(`  ✅ Registered ${role}: ${username}`);
     } catch {
@@ -38,7 +24,6 @@ const login = async (username) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password: 'password123' }),
-        agent,
     });
     const data = await res.json();
     return data.token;
@@ -52,7 +37,6 @@ const addRecord = async (token, payload) => {
             Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
-        agent,
     });
     const data = await res.json();
     if (!res.ok || data.error) {
@@ -60,6 +44,7 @@ const addRecord = async (token, payload) => {
         return;
     }
     console.log(`  🏥 Record for patient ${payload.patient_id} | Hash: ${data.blockchainHash?.substring(0, 12)}...`);
+    return data;
 };
 
 const bookAppointment = async (token, payload) => {
@@ -70,7 +55,6 @@ const bookAppointment = async (token, payload) => {
             Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
-        agent,
     });
     const data = await res.json();
     if (!res.ok || data.error) {
@@ -90,7 +74,6 @@ const updateAppointmentStatus = async (token, appointmentId, status) => {
             Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ status }),
-        agent,
     });
     if (res.ok) console.log(`  🔄 Appointment ${appointmentId} → ${status}`);
 };
@@ -209,28 +192,65 @@ async function runDemoGenerator() {
         if (!doctorToken) throw new Error('Failed to get doctor token');
         console.log('  🔑 Token acquired');
 
-        // ── 3. Update doctor profile with proper name ───────
-        console.log('\n── Updating Doctor Profile ──');
-        // We'll use a direct DB call via a custom API or SQL
-        // For now, update via SQL through the patients API pattern
-        // Actually, let's update patients with proper data first
-        
+        // ── 3. Update patient profiles with real names ──────
+        console.log('\n── Updating Patient Profiles ──');
+        for (const p of PATIENT_PROFILES) {
+            try {
+                const patToken = await fetch(`${API_URL}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: p.username, password: 'password123' }),
+                }).then(r => r.json()).then(d => d.token);
+                if (!patToken) { console.error(`  ⚠️  Could not login as ${p.username}`); continue; }
+                const upd = await fetch(`${API_URL}/profile`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${patToken}` },
+                    body: JSON.stringify({
+                        first_name: p.first,
+                        last_name:  p.last,
+                        date_of_birth: p.dob,
+                        gender: p.gender,
+                        blood_type: p.blood,
+                        phone_number: p.phone,
+                        email: p.email,
+                        address: p.address,
+                        emergency_contact_name: p.ecName,
+                        emergency_contact_phone: p.ecPhone,
+                        insurance_provider: p.insurance,
+                    }),
+                });
+                if (upd.ok) console.log(`  ✅ ${p.first} ${p.last}`);
+                else console.error(`  ❌ ${p.username}:`, await upd.json());
+            } catch (e) {
+                console.error(`  ❌ ${p.username}: ${e.message}`);
+            }
+        }
+
         // ── 4. Get patient list ─────────────────────────────
         console.log('\n── Fetching Patients ──');
         const patientsRes = await fetch(`${API_URL}/patients?limit=100`, {
             headers: { Authorization: `Bearer ${doctorToken}` },
-            agent,
         });
         const patientsJson = await patientsRes.json();
-        const patients = patientsJson.data || patientsJson;
-        console.log(`  Found ${patients.length} patients`);
+        const patients = (patientsJson.data || patientsJson || []);
+        
+        // Ensure patients is an array
+        if (!Array.isArray(patients)) {
+            console.error('  ⚠️  Patients response is not an array:', patientsJson);
+            console.log('  Skipping medical records generation...');
+        } else {
+            console.log(`  Found ${patients.length} patients`);
+        }
 
         const getPatientId = (username) => {
-            // Convert username like 'bruce_wayne' to match last_name 'Wayne'
-            const parts = username.split('_');
-            const lastName = parts[parts.length - 1];
-            const lastNameCapitalized = lastName.charAt(0).toUpperCase() + lastName.slice(1);
-            const p = patients.find((p) => p.last_name === lastNameCapitalized || p.last_name?.toLowerCase() === lastName);
+            if (!Array.isArray(patients)) return null;
+            const profile = PATIENT_PROFILES.find(pr => pr.username === username);
+            const p = patients.find((pt) =>
+                // Match by proper last name (after profile update)
+                (profile && pt.last_name?.toLowerCase() === profile.last.toLowerCase()) ||
+                // Fallback: username stored as last_name at registration
+                pt.last_name?.toLowerCase() === username.toLowerCase()
+            );
             if (!p) console.error(`  ⚠️  Patient not found: ${username}`);
             return p?.id;
         };
@@ -238,22 +258,27 @@ async function runDemoGenerator() {
         // ── 5. Generate Medical Records ─────────────────────
         console.log('\n── Generating Medical Records ──');
         let recordCount = 0;
-        for (const rec of RECORDS) {
-            const patientId = getPatientId(rec.patient);
-            if (!patientId) continue;
-            await addRecord(doctorToken, {
-                patient_id: patientId,
-                subjective: rec.subjective,
-                vitals: rec.vitals,
-                assessment: rec.assessment,
-                plan: rec.plan,
-                severity: rec.severity,
-                allergies: rec.allergies,
-                followUp: rec.followUp,
-            });
-            recordCount++;
+        
+        if (Array.isArray(patients) && patients.length > 0) {
+            for (const rec of RECORDS) {
+                const patientId = getPatientId(rec.patient);
+                if (!patientId) continue;
+                const result = await addRecord(doctorToken, {
+                    patient_id: patientId,
+                    subjective: rec.subjective,
+                    vitals: rec.vitals,
+                    assessment: rec.assessment,
+                    plan: rec.plan,
+                    severity: rec.severity,
+                    allergies: rec.allergies,
+                    followUp: rec.followUp,
+                });
+                if (result !== undefined) recordCount++;
+            }
+            console.log(`  📊 Total records created: ${recordCount}`);
+        } else {
+            console.log(`  ⚠️  Skipped - no patient data available`);
         }
-        console.log(`  📊 Total records created: ${recordCount}`);
 
         // ── 6. Generate Appointments ────────────────────────
         console.log('\n── Generating Appointments ──');

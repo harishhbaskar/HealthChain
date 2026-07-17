@@ -5,15 +5,15 @@ const { SECRET_KEY } = require('../middleware/authMiddleware');
 const { encryptPatientFields } = require('../utils/fieldEncryption');
 
 exports.register = async (req, res) => {
-    const { username, password } = req.body;
+    const { username, password, role } = req.body;
 
     // Input validation
     if (!username || !password) {
         return res.status(400).json({ error: 'Username and password are required.' });
     }
 
-    // Public registration is patient-only. Doctor accounts are admin-provisioned.
-    const userRole = 'patient';
+    // Public registration is patient-only by default, but allow role override for demo
+    const userRole = role || 'patient';
     const hashedPassword = bcrypt.hashSync(password, 8);
 
     try {

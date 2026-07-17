@@ -156,7 +156,7 @@ exports.verifyIntegrity = async (req, res) => {
         });
 
         const currentHash = generateHash(deterministicStr);
-        const block = myBlockchain.getBlockByRecordId(visitId);
+        const block = await myBlockchain.getBlockByRecordId(visitId);
 
         if (!block) {
             return res.json({ status: 'UNKNOWN', message: 'No blockchain record.' });

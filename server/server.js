@@ -3,14 +3,30 @@ const fs = require('fs');
 const http = require('http');
 const https = require('https');
 const cors = require('cors');
+const helmet = require('helmet');
 const bodyParser = require('body-parser');
 require('dotenv').config();
 const apiRoutes = require('./src/routes/apiRoutes');
 
 const app = express();
+app.set('trust proxy', 1); // Render/Railway sit behind a reverse proxy
+app.use(helmet());
 
-// Middleware
-app.use(cors());
+// CORS — allow localhost in dev and FRONTEND_URL in production
+const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    process.env.FRONTEND_URL,
+].filter(Boolean);
+
+app.use(cors({
+    origin: (origin, cb) => {
+        // allow non-browser requests (curl, Postman) and allowed origins
+        if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+        cb(new Error(`CORS blocked: ${origin}`));
+    },
+    credentials: true,
+}));
 app.use(bodyParser.json());
 
 // Routes
@@ -19,6 +35,11 @@ app.use('/api', apiRoutes);
 // Root Endpoint
 app.get('/', (req, res) => {
     res.send('HealthChain Bridge API is Running...');
+});
+
+// Health check for Render / Railway
+app.get('/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 const httpPort = Number(process.env.PORT || 3000);
