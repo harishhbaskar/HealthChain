@@ -14,8 +14,8 @@ app.use(helmet());
 
 // CORS — allow localhost in dev and FRONTEND_URL in production
 const allowedOrigins = [
+    'https://localhost:5173',
     'http://localhost:5173',
-    'http://localhost:3000',
     process.env.FRONTEND_URL,
 ].filter(Boolean);
 
