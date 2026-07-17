@@ -23,6 +23,20 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+# LaTeX build artifacts
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.log
+*.lot
+*.out
+*.run.xml
+*.synctex.gz
+*.toc
 
 # Docker volumes
 mysql_data/
