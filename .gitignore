@@ -9,6 +9,7 @@ server/node_modules/
 .env.production
 client/.env
 server/.env
+server/certs/
 
 # Build output
 client/dist/
