@@ -6,9 +6,9 @@ const dbSslEnabled = process.env.DB_SSL === 'true';
 const sslConfig = dbSslEnabled
     ? {
         rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false',
-        ...(process.env.DB_SSL_CA_PATH ? { ca: fs.readFileSync(process.env.DB_SSL_CA_PATH) } : {}),
-        ...(process.env.DB_SSL_CERT_PATH ? { cert: fs.readFileSync(process.env.DB_SSL_CERT_PATH) } : {}),
-        ...(process.env.DB_SSL_KEY_PATH ? { key: fs.readFileSync(process.env.DB_SSL_KEY_PATH) } : {}),
+        ...(process.env.DB_SSL_CA ? { ca: process.env.DB_SSL_CA } : process.env.DB_SSL_CA_PATH ? { ca: fs.readFileSync(process.env.DB_SSL_CA_PATH) } : {}),
+        ...(process.env.DB_SSL_CERT ? { cert: process.env.DB_SSL_CERT } : process.env.DB_SSL_CERT_PATH ? { cert: fs.readFileSync(process.env.DB_SSL_CERT_PATH) } : {}),
+        ...(process.env.DB_SSL_KEY ? { key: process.env.DB_SSL_KEY } : process.env.DB_SSL_KEY_PATH ? { key: fs.readFileSync(process.env.DB_SSL_KEY_PATH) } : {}),
     }
     : undefined;
 
