@@ -14,18 +14,30 @@ const sslConfig = dbSslEnabled
 
 // Use a connection pool instead of single connection
 // This allows proper transaction handling and better scalability
-const pool = mysql.createPool({
-    host: process.env.DB_HOST || '127.0.0.1',
-    port: process.env.DB_PORT || 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || 'root123',
-    database: process.env.DB_NAME || 'healthchain_db',
+const dbConfig = {
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
     timezone: '+05:30', // IST (India Standard Time)
     ...(sslConfig ? { ssl: sslConfig } : {}),
-});
+};
+
+if (process.env.MYSQL_URL || process.env.DATABASE_URL) {
+    const dbUrl = new URL(process.env.MYSQL_URL || process.env.DATABASE_URL);
+    dbConfig.host = dbUrl.hostname;
+    dbConfig.port = dbUrl.port || 3306;
+    dbConfig.user = dbUrl.username;
+    dbConfig.password = dbUrl.password;
+    dbConfig.database = dbUrl.pathname.replace(/^\//, '');
+} else {
+    dbConfig.host = process.env.DB_HOST || '127.0.0.1';
+    dbConfig.port = process.env.DB_PORT || 3306;
+    dbConfig.user = process.env.DB_USER || 'root';
+    dbConfig.password = process.env.DB_PASSWORD || 'root123';
+    dbConfig.database = process.env.DB_NAME || 'healthchain_db';
+}
+
+const pool = mysql.createPool(dbConfig);
 
 // Test the connection on startup
 pool.getConnection((err, connection) => {

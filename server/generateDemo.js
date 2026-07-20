@@ -3,7 +3,7 @@
 //  HealthChain MVP — Rich Demo Data Generator
 //  Generates realistic data so dr_house looks like an active user
 // ═══════════════════════════════════════════════════════════════
-const API_URL = 'http://localhost:3000/api';
+const API_URL = process.env.API_URL || 'http://localhost:3000/api';
 
 // ── Helpers ──────────────────────────────────────────────────
 const register = async (username, role) => {
